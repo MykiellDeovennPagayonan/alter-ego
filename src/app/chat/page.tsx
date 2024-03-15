@@ -5,6 +5,8 @@ import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import Message from "~/components/custom/message"
 import getChatResponse from "~/utils/getChatResponse"
+import Memory from "~/components/custom/memory"
+import extractSummary from "~/utils/extractSummary"
 
 type Message = {
   role: string
@@ -13,8 +15,9 @@ type Message = {
 
 export default function Chat() {
   const [messages, setMessages] = useState<Array<Message>>([])
-  const [inputValue, setInputValue] = useState("")
-  const [isDisabled, setIsDisabled] = useState(false)
+  const [inputValue, setInputValue] = useState<string>("")
+  const [isDisabled, setIsDisabled] = useState<boolean>(false)
+  const [memory, setMemory] = useState<Array<string>>([])
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value)
@@ -22,14 +25,26 @@ export default function Chat() {
 
   async function handleSendMessage() {
     if (inputValue.trim() !== "") {
+      let messagesInitial = [...messages, { role: "user", parts: inputValue }]
       setIsDisabled(true)
-      setMessages([...messages, { role: "user", parts: inputValue }])
+      setMessages(messagesInitial)
 
-      const messagesInitial = messages
-      const reply = await getChatResponse(messagesInitial, inputValue)
+      const reply = await getChatResponse(messages, inputValue, memory)
 
-      setMessages([...messages, { role: "user", parts: inputValue }, { role: "model", parts: reply }])
+      messagesInitial = [...messagesInitial, { role: "model", parts: reply }]
+
+      console.log(reply)
+
+      setMessages(messagesInitial)
       setIsDisabled(false)
+
+      const info = await extractSummary(messagesInitial, memory)
+
+      console.log(info)
+
+      if (!info.toLocaleLowerCase().includes("none")) {
+        setMemory([...memory, info])
+      }
 
       setInputValue("")
     }
@@ -41,8 +56,12 @@ export default function Chat() {
     }
   }
 
+  function resetConversation() {
+    setMessages([])
+  }
+
   return (
-    <div className="flex flex-col items-center w-screen h-screen bg-gray-100 text-white">
+    <div className="flex flex-col items-center w-screen h-screen bg-gray-100 text-white bg-grid-gray-400/[0.1]">
       <div className="flex flex-col h-full w-full overflow-y-scroll text-black scrollbar">
         <div className="flex flex-col gap-2 w-3/5 mx-auto p-8 pb-28">
           {messages.map((message, index) => {
@@ -64,6 +83,10 @@ export default function Chat() {
           Send
         </Button>
       </div>
+      <Button className="fixed top-4 left-4" onClick={() => resetConversation()}>
+        Reset
+      </Button>
+      <Memory memories={memory}/>
     </div>
   )
 }
